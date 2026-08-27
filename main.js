@@ -5,6 +5,11 @@ import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 const CLEAR = 0x0c0c12;
 const SPLAT_URL = new URL("./assets/tardigrade.ply", import.meta.url).href;
 
+// PCA of this SAM 3D card (file = Spark local coords): long/mid span the
+// painted face, long × mid faces the readable side after alignment.
+const CARD_LONG = new THREE.Vector3(-0.84370425, -0.51973402, 0.13431195);
+const CARD_MID = new THREE.Vector3(-0.53661569, 0.80987354, -0.23695664);
+
 const canvas = document.querySelector("#viewport");
 const statusEl = document.querySelector("#status");
 
@@ -20,12 +25,12 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(CLEAR);
 
 const camera = new THREE.PerspectiveCamera(
-  50,
+  48,
   window.innerWidth / window.innerHeight,
   0.05,
   200,
 );
-camera.position.set(4, 1.2, -6);
+camera.position.set(-3.2, 1.4, 7.5);
 
 const spark = new SparkRenderer({ renderer });
 scene.add(spark);
@@ -36,7 +41,7 @@ controls.dampingFactor = 0.06;
 controls.enablePan = true;
 controls.minDistance = 1;
 controls.maxDistance = 40;
-controls.target.set(0, 0, 2.7);
+controls.target.set(0, 0, 0);
 
 const splat = new SplatMesh({
   url: SPLAT_URL,
@@ -58,24 +63,38 @@ splat.initialized
     setStatus("could not load splat", "error");
   });
 
+function orientCard(mesh) {
+  const xAxis = CARD_LONG.clone().normalize();
+  const zAxis = new THREE.Vector3().crossVectors(xAxis, CARD_MID).normalize();
+  const yAxis = new THREE.Vector3().crossVectors(zAxis, xAxis).normalize();
+  const basis = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
+  mesh.quaternion.setFromRotationMatrix(basis.clone().invert());
+
+  const localCenter = mesh.getBoundingBox(true).getCenter(new THREE.Vector3());
+  mesh.position.copy(localCenter).applyQuaternion(mesh.quaternion).negate();
+  mesh.updateMatrixWorld(true);
+}
+
 function frameCard(mesh) {
-  const box = mesh.getBoundingBox(true);
-  const center = box.getCenter(new THREE.Vector3());
-  const size = box.getSize(new THREE.Vector3());
-  const radius = size.length() * 0.5;
+  orientCard(mesh);
+
+  const worldBox = mesh.getBoundingBox(true).applyMatrix4(mesh.matrixWorld);
+  const center = worldBox.getCenter(new THREE.Vector3());
+  const size = worldBox.getSize(new THREE.Vector3());
+  const radius = Math.max(size.x, size.y) * 0.55;
   const fit =
     radius / Math.sin(THREE.MathUtils.degToRad(camera.fov * 0.5));
 
-  // SAM 3D painted this as a near-flat XY card. The drawing reads from the
-  // -Z face; offset +X / -Z for a Blender-like three-quarter view.
-  const dir = new THREE.Vector3(0.78, 0.18, -1).normalize();
-  camera.position.copy(center).addScaledVector(dir, fit * 0.86);
+  // Three-quarter of the standing card, matching the Blender still:
+  // slightly left, slightly above, looking at the painted face.
+  const dir = new THREE.Vector3(-0.62, 0.2, 1).normalize();
+  camera.position.copy(center).addScaledVector(dir, fit * 1.05);
   camera.near = Math.max(0.02, fit / 80);
   camera.far = Math.max(80, fit * 12);
   camera.updateProjectionMatrix();
 
   controls.target.copy(center);
-  controls.minDistance = radius * 0.4;
+  controls.minDistance = radius * 0.45;
   controls.maxDistance = radius * 8;
   controls.update();
 }
