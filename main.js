@@ -81,14 +81,14 @@ function frameCard(mesh) {
   const worldBox = mesh.getBoundingBox(true).applyMatrix4(mesh.matrixWorld);
   const center = worldBox.getCenter(new THREE.Vector3());
   const size = worldBox.getSize(new THREE.Vector3());
-  const radius = Math.max(size.x, size.y) * 0.55;
+  const radius = Math.max(size.x, size.y) * 0.42;
   const fit =
     radius / Math.sin(THREE.MathUtils.degToRad(camera.fov * 0.5));
 
   // Three-quarter of the standing card, matching the Blender still:
   // slightly left, slightly above, looking at the painted face.
   const dir = new THREE.Vector3(-0.62, 0.2, 1).normalize();
-  camera.position.copy(center).addScaledVector(dir, fit * 1.05);
+  camera.position.copy(center).addScaledVector(dir, fit * 0.92);
   camera.near = Math.max(0.02, fit / 80);
   camera.far = Math.max(80, fit * 12);
   camera.updateProjectionMatrix();
